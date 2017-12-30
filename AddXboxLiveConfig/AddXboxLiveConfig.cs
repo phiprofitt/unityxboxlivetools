@@ -89,17 +89,23 @@ public static class XboxLiveConfig
 [InitializeOnLoad]
 public class XBLConfigWindow : EditorWindow
 {
-    string scid = XboxLiveConfig.Scid;
-    string titleId = XboxLiveConfig.TitleId;
+    static string scid = XboxLiveConfig.Scid;
+    static string titleId = XboxLiveConfig.TitleId;
+    static bool isLoaded = false;
 
     static XBLConfigWindow()
     {
-        
+        //Subscribe to update to load the config once assets are loaded
+        EditorApplication.update += Update;
     }
 
-    void OnEnable()
+    static void Update()
     {
-        Load();
+        //On update check to see if we have loaded our IDs yet, if not try loading them
+        if (!isLoaded)
+            Load();
+        else
+            EditorApplication.update -= Update;
     }
 
     [MenuItem("UWP / Xbox Live/Configure IDs")]
@@ -125,7 +131,7 @@ public class XBLConfigWindow : EditorWindow
         }
     }
 
-    private void Save()
+    private static void Save()
     {
         if (!XboxLiveConfig.CheckValidGUID(scid) || !XboxLiveConfig.CheckValidTitleID(titleId))
             return;
@@ -150,7 +156,7 @@ public class XBLConfigWindow : EditorWindow
         }
     }
 
-    private void Load()
+    private static void Load()
     {
         string folderpath = Application.dataPath + "/Editor/XboxLiveConfig";
 
@@ -169,6 +175,7 @@ public class XBLConfigWindow : EditorWindow
                     if (scidMatch.Success) { //scid found
                         scid = scidMatch.Value;
                         XboxLiveConfig.Scid = scid;
+                        Debug.Log("XBLConfig loaded scid : " + scid);
                     }
 
                     var titleIdMatch = Regex.Match(line, @"([0-9]{10}),");
@@ -176,6 +183,7 @@ public class XBLConfigWindow : EditorWindow
                     { //scid found
                         titleId = titleIdMatch.Groups[1].Value;
                         XboxLiveConfig.TitleId = titleId;
+                        Debug.Log("XBLConfig loaded titleId : " + titleId);
                     }
                 }
             }
@@ -184,6 +192,8 @@ public class XBLConfigWindow : EditorWindow
                 //no file exists so no loading needs to be done
             }
         }
+
+        isLoaded = true;
     }
 }
 
