@@ -5,20 +5,201 @@ using UnityEditor;
 using UnityEditor.Build;
 using UnityEngine;
 
+//this class stores the xbox live config
+public static class XboxLiveConfig
+{
+    private static string ServiceConfigId = "SCID_GOES_HERE"; // replace this with your own scid
+    private static string DecimalTitleId = "TITLEID_GOES_HERE"; // replace this with your own title id
+
+    public static string Scid
+    {
+        get { return ServiceConfigId; }
+        set { ServiceConfigId = value; }
+    }
+    public static string TitleId
+    {
+        get { return DecimalTitleId; }
+        set { DecimalTitleId = value; }
+    }
+
+
+    public static bool CheckValidGUID(string serviceConfigID)
+    {
+
+        string GUIDRegexPattern = @"([0-9A-Fa-f]{8}[-][0-9A-Fa-f]{4}[-][0-9A-Fa-f]{4}[-][0-9A-Fa-f]{4}[-][0-9A-Fa-f]{12})";
+
+        Regex rgx = new Regex(GUIDRegexPattern);
+        bool isValidGuid = rgx.IsMatch(serviceConfigID);
+
+        if (!isValidGuid)
+            Debug.Log("! Error ! Invalid Service Config ID");
+
+        return isValidGuid;
+    }
+
+    public static bool CheckValidTitleID(string titleID)
+    {
+        string titleIdRegexPattern = @"([0-9]{9})";
+
+        Regex rgx = new Regex(titleIdRegexPattern);
+        bool isValidTitleId = rgx.IsMatch(titleID);
+
+        if (!isValidTitleId)
+            Debug.Log("! Error ! Invalid Title ID - perhaps you aren't using the decimal ID?");
+
+        return isValidTitleId;
+    }
+
+    public static bool CreateConfigFile(string path)
+    {
+        //Create the xbox services config file, or overwrite the current one with changes
+        try
+        {
+            using (StreamWriter SWriter = File.CreateText(path))
+            {
+                SWriter.WriteLine("{");
+                SWriter.WriteLine("\"TitleId\" : " + XboxLiveConfig.TitleId + ",");
+                SWriter.WriteLine("\"PrimaryServiceConfigId\" : \"" + XboxLiveConfig.Scid + "\"");
+                SWriter.WriteLine("}");
+
+                SWriter.Close();
+            }
+
+            //Double check to make sure the file saved
+            if (File.Exists(path))
+            {
+#if XBL_DEBUG
+                Debug.Log("Created xbox services config file : " + path);
+#endif
+                return true;
+            }
+
+        }
+        catch (System.IO.IOException e)
+        {
+            Debug.Log("File IO Exception trying to create xboxservices.config");
+            return false;
+        }
+
+        return false;
+    }
+}
+
+//This class creates a window to edit the xbox live configuration
+[InitializeOnLoad]
+public class XBLConfigWindow : EditorWindow
+{
+    string scid = XboxLiveConfig.Scid;
+    string titleId = XboxLiveConfig.TitleId;
+
+    static XBLConfigWindow()
+    {
+        
+    }
+
+    void OnEnable()
+    {
+        Load();
+    }
+
+    [MenuItem("UWP / Xbox Live/Configure IDs")]
+    public static void ConfigureLiveIDs()
+    {
+        EditorWindow.GetWindow(typeof(XBLConfigWindow));
+    }
+
+
+    private void OnGUI()
+    {
+        GUILayout.Label("Xbox Live Configuration", EditorStyles.boldLabel);
+        scid = EditorGUILayout.TextField("Service Config ID: ", scid);
+        titleId = EditorGUILayout.TextField("Title ID: ", titleId);
+
+        if (GUILayout.Button("Save"))
+        {
+            Save();
+        }
+        if (GUILayout.Button("Load"))
+        {
+            Load();
+        }
+    }
+
+    private void Save()
+    {
+        if (!XboxLiveConfig.CheckValidGUID(scid) || !XboxLiveConfig.CheckValidTitleID(titleId))
+            return;
+        else
+        {
+            Debug.Log("Saved successfully! SCID: " + XboxLiveConfig.Scid + " TitleID: " + XboxLiveConfig.TitleId);
+
+            XboxLiveConfig.Scid = scid;
+            XboxLiveConfig.TitleId = titleId;
+
+            string folderpath = Application.dataPath + "/Editor/XboxLiveConfig";
+
+            if (!Directory.Exists(folderpath))
+            {
+                Directory.CreateDirectory(folderpath);
+            }
+
+            if (!XboxLiveConfig.CreateConfigFile(folderpath + "xboxservices.config"))
+                return;
+
+            Debug.Log("Saved successfully! SCID: " + XboxLiveConfig.Scid + " TitleID: " + XboxLiveConfig.TitleId);
+        }
+    }
+
+    private void Load()
+    {
+        string folderpath = Application.dataPath + "/Editor/XboxLiveConfig";
+
+        if (!Directory.Exists(folderpath))
+            return;
+
+        string filepath = folderpath + "/xboxservices.config";
+        if (File.Exists(filepath))
+        {
+            try { 
+                string[] lines = File.ReadAllLines(filepath);
+
+                foreach (string line in lines)
+                {
+                    var scidMatch = Regex.Match(line, @"[{(]?[0-9A-F]{8}[-]?([0-9A-F]{4}[-]?){3}[0-9A-F]{12}[)}]?");
+                    if (scidMatch.Success) { //scid found
+                        scid = scidMatch.Value;
+                        XboxLiveConfig.Scid = scid;
+                    }
+
+                    var titleIdMatch = Regex.Match(line, @"([0-9]{10}),");
+                    if (titleIdMatch.Success)
+                    { //scid found
+                        titleId = titleIdMatch.Groups[1].Value;
+                        XboxLiveConfig.TitleId = titleId;
+                    }
+                }
+            }
+            catch(System.IO.IOException e)
+            {
+                //no file exists so no loading needs to be done
+            }
+        }
+    }
+}
+
 //add XBL_DEBUG define to Unity defines to enable debugging
 class AddXboxLiveConfig : IPostprocessBuild {
 
     //private string ServiceConfigId = "00000000-0000-0000-0000-000000000000";
     //private string DecimalTitleId = "1234567890";
-
-    private string ServiceConfigId = "SCID_GOES_HERE"; // replace this with your own scid
-    private string DecimalTitleId = "TITLEID_GOES_HERE"; // replace this with your own title id
+    
+    
 
     public int callbackOrder { get { return 0; } }
 
     public void OnPostprocessBuild(BuildTarget target, string path)
     {
-
+        
 #if XBL_DEBUG
         Debug.Log("processor for target " + target + " at path " + path);
         Debug.Log("Player settings: " + PlayerSettings.productName);
@@ -28,11 +209,11 @@ class AddXboxLiveConfig : IPostprocessBuild {
             return;
 
         //Check for a valid GUID in the service config ID
-        if (!CheckValidGUID(ServiceConfigId))
+        if (!XboxLiveConfig.CheckValidGUID(XboxLiveConfig.Scid))
             return;
 
         //Check for a valid decimal title ID
-        if (!CheckValidTitleID(DecimalTitleId))
+        if (!XboxLiveConfig.CheckValidTitleID(XboxLiveConfig.TitleId))
             return;
 
         if (Directory.Exists(path))
@@ -48,32 +229,8 @@ class AddXboxLiveConfig : IPostprocessBuild {
 #endif
                 string xboxServicesFilePath = actualPath + "/xboxservices.config";
 
-                //Create the xbox services config file, or overwrite the current one with changes
-                try {
-
-                    using (StreamWriter SWriter = File.CreateText(xboxServicesFilePath))
-                    {
-                        SWriter.WriteLine("{");
-                        SWriter.WriteLine("\"TitleId\" : " + DecimalTitleId + ",");
-                        SWriter.WriteLine("\"PrimaryServiceConfigId\" : \"" + ServiceConfigId + "\"");
-                        SWriter.WriteLine("}");
-
-                        SWriter.Close();
-                    }
-
-                    //Double check to make sure the file saved
-                    if (File.Exists(xboxServicesFilePath))
-                    {
-#if XBL_DEBUG
-                        Debug.Log("Created xbox services config file : " + xboxServicesFilePath);
-#endif
-                    }
-                    
-                }
-                catch(System.IO.IOException e)
-                {
-                    Debug.Log("File IO Exception trying to create xboxservices.config");
-                }
+                if(!XboxLiveConfig.CreateConfigFile(xboxServicesFilePath))
+                    return;
 
                 //Start adding the config file to the VS project file
                 string mainProjectFile = actualPath + "/" + PlayerSettings.productName + ".vcxproj";
@@ -149,30 +306,4 @@ class AddXboxLiveConfig : IPostprocessBuild {
         return;
     }
 
-    private bool CheckValidGUID(string serviceConfigID)
-    {
-
-        string GUIDRegexPattern = @"([0-9A-Fa-f]{8}[-][0-9A-Fa-f]{4}[-][0-9A-Fa-f]{4}[-][0-9A-Fa-f]{4}[-][0-9A-Fa-f]{12})";
-
-        Regex rgx = new Regex(GUIDRegexPattern);
-        bool isValidGuid = rgx.IsMatch(serviceConfigID);
-
-        if (!isValidGuid)
-            Debug.Log("! Error ! Invalid Service Config ID");
-
-        return isValidGuid;
-    }
-
-    private bool CheckValidTitleID(string titleID)
-    {
-        string titleIdRegexPattern = @"([0-9]{9})";
-
-        Regex rgx = new Regex(titleIdRegexPattern);
-        bool isValidTitleId = rgx.IsMatch(titleID);
-
-        if (!isValidTitleId)
-            Debug.Log("! Error ! Invalid Title ID - perhaps you aren't using the decimal ID?");
-
-        return isValidTitleId;
-    }
 }
