@@ -1,5 +1,6 @@
 using System.IO;
 using System.Xml;
+using System.Text.RegularExpressions;
 using UnityEditor;
 using UnityEditor.Build;
 using UnityEngine;
@@ -7,14 +8,11 @@ using UnityEngine;
 //add XBL_DEBUG define to Unity defines to enable debugging
 class AddXboxLiveConfig : IPostprocessBuild {
 
-    private bool DebugEnabled = false;
     //private string ServiceConfigId = "00000000-0000-0000-0000-000000000000";
     //private string DecimalTitleId = "1234567890";
 
     private string ServiceConfigId = "SCID_GOES_HERE"; // replace this with your own scid
     private string DecimalTitleId = "TITLEID_GOES_HERE"; // replace this with your own title id
-
-    private string BuildPath = "";
 
     public int callbackOrder { get { return 0; } }
 
@@ -27,6 +25,14 @@ class AddXboxLiveConfig : IPostprocessBuild {
 #endif
         //if the build isn't for UWP, then just ignore
         if (target != BuildTarget.WSAPlayer)
+            return;
+
+        //Check for a valid GUID in the service config ID
+        if (!CheckValidGUID(ServiceConfigId))
+            return;
+
+        //Check for a valid decimal title ID
+        if (!CheckValidTitleID(DecimalTitleId))
             return;
 
         if (Directory.Exists(path))
@@ -141,5 +147,32 @@ class AddXboxLiveConfig : IPostprocessBuild {
         configElement.AppendChild(deploymentContent);
 
         return;
+    }
+
+    private bool CheckValidGUID(string serviceConfigID)
+    {
+
+        string GUIDRegexPattern = @"([0-9A-Fa-f]{8}[-][0-9A-Fa-f]{4}[-][0-9A-Fa-f]{4}[-][0-9A-Fa-f]{4}[-][0-9A-Fa-f]{12})";
+
+        Regex rgx = new Regex(GUIDRegexPattern);
+        bool isValidGuid = rgx.IsMatch(serviceConfigID);
+
+        if (!isValidGuid)
+            Debug.Log("! Error ! Invalid Service Config ID");
+
+        return isValidGuid;
+    }
+
+    private bool CheckValidTitleID(string titleID)
+    {
+        string titleIdRegexPattern = @"([0-9]{9})";
+
+        Regex rgx = new Regex(titleIdRegexPattern);
+        bool isValidTitleId = rgx.IsMatch(titleID);
+
+        if (!isValidTitleId)
+            Debug.Log("! Error ! Invalid Title ID - perhaps you aren't using the decimal ID?");
+
+        return isValidTitleId;
     }
 }
