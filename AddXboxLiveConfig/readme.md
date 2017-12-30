@@ -10,7 +10,7 @@ If you are unsure how to get started with Xbox Live please reference [getting st
 
 1. Ensure you have Xbox Live enabled on your application on https://developer.microsoft.com in the developer portal dashboard
 2. Find your Service Config Id and Title Id located on the Xbox Live Setup page in the developer portal.
-2. Include the AddXboxLiveConfig.cs file in your Unity assets folder under Assets/Editor
+2. Include the AddXboxLiveConfig.cs file in your Unity assets folder under Assets/Editor (Or download and install the Unity package from https://github.com/phiprofitt/unityxboxlivetools/releases)
 3. Use the new Menu item "UWP" -> "Xbox Live" -> "Configure IDs" to input your service config ID and Title ID
 4. Hit the Save button to save your configuration, you can now find this in an asset file under "Editor/XboxLiveConfig/xboxservices.config," and this will be loaded automatically next time you load the Unity editor.
 5. If you build a UWP project this configuration will now be used to auto-generate an xboxservices.config file, and will be automatically included in your Visual Studio project.
