@@ -1,13 +1,13 @@
-﻿using UnityEditor;
-using UnityEditor.Build;
-using UnityEditor.Compilation;
-using UnityEngine;
-
 using System.IO;
 using System.Xml;
+using UnityEditor;
+using UnityEditor.Build;
+using UnityEngine;
 
+//add XBL_DEBUG define to Unity defines to enable debugging
 class AddXboxLiveConfig : IPostprocessBuild {
 
+    private bool DebugEnabled = false;
     //private string ServiceConfigId = "00000000-0000-0000-0000-000000000000";
     //private string DecimalTitleId = "1234567890";
 
@@ -20,32 +20,30 @@ class AddXboxLiveConfig : IPostprocessBuild {
 
     public void OnPostprocessBuild(BuildTarget target, string path)
     {
+
+#if XBL_DEBUG
         Debug.Log("processor for target " + target + " at path " + path);
         Debug.Log("Player settings: " + PlayerSettings.productName);
-        
+#endif
         //if the build isn't for UWP, then just ignore
         if (target != BuildTarget.WSAPlayer)
             return;
 
         if (Directory.Exists(path))
         {
-            Debug.Log("Dir exists " + path);
-
             string actualPath = path + "/" + PlayerSettings.productName;
-            Debug.Log(actualPath);
 
             //Check for the actual project file directory to make sure it exists
             if (Directory.Exists(actualPath))
             {
+#if XBL_DEBUG
                 //If the directory exists, we can create the services config file
                 Debug.Log("Dir exists " + actualPath + " creating config file");
-
+#endif
                 string xboxServicesFilePath = actualPath + "/xboxservices.config";
 
                 //Create the xbox services config file, or overwrite the current one with changes
                 try {
-                    
-                    Debug.Log("Creating xbox services config file : " + xboxServicesFilePath);
 
                     using (StreamWriter SWriter = File.CreateText(xboxServicesFilePath))
                     {
@@ -60,7 +58,9 @@ class AddXboxLiveConfig : IPostprocessBuild {
                     //Double check to make sure the file saved
                     if (File.Exists(xboxServicesFilePath))
                     {
+#if XBL_DEBUG
                         Debug.Log("Created xbox services config file : " + xboxServicesFilePath);
+#endif
                     }
                     
                 }
@@ -74,9 +74,10 @@ class AddXboxLiveConfig : IPostprocessBuild {
 
                 if (File.Exists(mainProjectFile))
                 {
+#if XBL_DEBUG
                     //Project file was found so now add the config file as content to the project file
                     Debug.Log("Project file found: " + mainProjectFile);
-
+#endif
                     //Load the output project file
                     XmlDocument projectFile = new XmlDocument();
                     projectFile.Load(mainProjectFile);
@@ -84,7 +85,9 @@ class AddXboxLiveConfig : IPostprocessBuild {
                     // If the services config file already exists we don't need to do anything.
                     if (CheckForXboxConfig(projectFile))
                     {
+#if XBL_DEBUG
                         Debug.Log("xboxservices.config already found in project");
+#endif
                         return;
                     }
 
@@ -93,8 +96,9 @@ class AddXboxLiveConfig : IPostprocessBuild {
 
                     //Save the changes
                     projectFile.Save(mainProjectFile);
-
+#if XBL_DEBUG
                     Debug.Log("Project file saved: " + mainProjectFile);
+#endif
                 }
             }
         }
@@ -107,7 +111,6 @@ class AddXboxLiveConfig : IPostprocessBuild {
         {
             foreach (XmlAttribute attribute in elemList[i].Attributes)
             {
-                Debug.Log("Attribute: " + attribute.Name + " " + attribute.Value);
                 if (attribute.Name == "Include" && attribute.Value.Contains("xboxservices.config"))
                 {
                     return true;
