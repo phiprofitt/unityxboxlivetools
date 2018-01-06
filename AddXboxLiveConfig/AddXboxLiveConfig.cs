@@ -94,16 +94,96 @@ public static class XboxLiveConfig
     }
 }
 
+public class XBLFiddlerConfigWindow : EditorWindow
+{
+    [MenuItem("UWP / Xbox Live/Fiddler Config")]
+    public static void ConfigureFiddler()
+    {
+        EditorWindow.GetWindow(typeof(XBLFiddlerConfigWindow));
+    }
+
+    private void OnGUI()
+    {
+        GUILayout.Label("Fiddler Configuration", EditorStyles.boldLabel);
+
+        if (GUILayout.Button("Enable Fiddler"))
+        {
+            EnableFiddler(true);
+        }
+        if (GUILayout.Button("Disable Fiddler"))
+        {
+            EnableFiddler(false);
+        }
+    }
+
+    private void EnableFiddler(bool isEnabled)
+    {
+        FiddlerCfgCmd cmd = new FiddlerCfgCmd(isEnabled);
+
+        ThreadStart threadDelegate = new ThreadStart(cmd.Enable);
+
+        Thread setCmdThread = new Thread(threadDelegate);
+
+        setCmdThread.Start();
+    }
+}
+
+class FiddlerCfgCmd
+{
+    private bool shouldEnable = false;
+    public FiddlerCfgCmd(bool toEnable)
+    {
+        this.shouldEnable = toEnable;
+    }
+
+    public void Enable()
+    {
+        string procString = "netsh winhttp set proxy 127.0.0.1:8888 \"<-loopback>\"";
+
+        if (!shouldEnable)
+            procString = "netsh winhttp reset proxy";
+
+        var processInfo = new ProcessStartInfo("cmd.exe", "/C " + procString);
+        processInfo.CreateNoWindow = false;
+        processInfo.UseShellExecute = true;
+        processInfo.RedirectStandardError = false;
+        processInfo.RedirectStandardOutput = false;
+        processInfo.Verb = "runas";
+
+        Process p = new Process();
+
+        p.StartInfo = processInfo;
+        p.Start();
+        p.WaitForExit();
+
+        if (p.ExitCode == 0) { 
+            if(shouldEnable)
+                UnityEngine.Debug.Log("XBL: Fiddler proxy enabled. REMEMBER TO DISABLE WHEN FINISHED");
+            else
+                UnityEngine.Debug.Log("XBL: Fiddler proxy disabled.");
+        }
+    }
+}
+
+
 public class XBLSandboxConfigWindow : EditorWindow
 {
     static string sandboxId = XboxLiveConfig.Sandbox;
+    static bool initialized = false;
 
-    [MenuItem("UWP / Xbox Live/Set Sandbox")]
+    [MenuItem("UWP / Xbox Live/Sandbox Config")]
     public static void ConfigureSandbox()
     {
         EditorWindow.GetWindow(typeof(XBLSandboxConfigWindow));
     }
 
+    public XBLSandboxConfigWindow()
+    {
+        if (!initialized) { 
+            ReadSandbox();
+            initialized = true;
+        }
+    }
 
     private void OnGUI()
     {
@@ -118,26 +198,49 @@ public class XBLSandboxConfigWindow : EditorWindow
         {
             SetSandbox("RETAIL");
         }
+
+        if(GUILayout.Button("Read Sandbox ID"))
+        {
+            ReadSandbox();
+        }
     }
 
     private void SetSandbox(string sandbox)
     {
-        SetSandboxCmd cmd = new SetSandboxCmd(sandbox);
+        SandboxCmd cmd = new SandboxCmd(sandbox);
         
         ThreadStart threadDelegate = new ThreadStart(cmd.Set);
 
         Thread setCmdThread = new Thread(threadDelegate);
 
         setCmdThread.Start();
+
+        sandboxId = sandbox;
+    }
+
+    private void ReadSandbox()
+    {
+        SandboxCmd cmd = new SandboxCmd();
+
+        ThreadStart threadDelegate = new ThreadStart(cmd.Read);
+
+        Thread readCmdThread = new Thread(threadDelegate);
+
+        readCmdThread.Start();
     }
 
 }
 
-class SetSandboxCmd
+class SandboxCmd
 {
     string sandboxId;
 
-    public SetSandboxCmd(string sandboxId)
+    public SandboxCmd()
+    {
+
+    }
+
+    public SandboxCmd(string sandboxId)
     {
         this.sandboxId = sandboxId;
     }
@@ -160,6 +263,35 @@ class SetSandboxCmd
         if(p.ExitCode == 0)
             UnityEngine.Debug.Log("XBL: Sandbox configured to " + sandboxId);
     }
+
+    public void Read()
+    {
+        var processInfo = new ProcessStartInfo("cmd.exe", "/C " + @"reg query hklm\software\microsoft\xboxlive /v Sandbox");
+        processInfo.CreateNoWindow = true;
+        processInfo.UseShellExecute = false;
+        processInfo.RedirectStandardError = true;
+        processInfo.RedirectStandardOutput = true;
+
+        Process p = new Process();
+        p.StartInfo = processInfo;
+        p.Start();
+
+        while (!p.StandardOutput.EndOfStream)
+        {
+            string line = p.StandardOutput.ReadLine();
+
+            string sandboxIdRegex = @"\Sandbox\b\s+REG_SZ\b\s+(\w+[.]?\d?)";
+            var sandboxMatch = Regex.Match(line, sandboxIdRegex);
+            if (sandboxMatch.Success)
+            { //sandboxId found
+                sandboxId = sandboxMatch.Groups[1].Value;
+                UnityEngine.Debug.Log("XBL Sandbox : " + sandboxId);
+            }            
+        }
+
+        p.WaitForExit();
+    }
+
 }
 
 //This class creates a window to edit the xbox live configuration
