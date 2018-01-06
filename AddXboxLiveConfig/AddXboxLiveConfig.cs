@@ -1,6 +1,9 @@
 using System.IO;
 using System.Xml;
 using System.Text.RegularExpressions;
+using System.Diagnostics;
+using System.Threading;
+
 using UnityEditor;
 using UnityEditor.Build;
 using UnityEngine;
@@ -10,6 +13,7 @@ public static class XboxLiveConfig
 {
     private static string ServiceConfigId = "SCID_GOES_HERE"; // replace this with your own scid
     private static string DecimalTitleId = "TITLEID_GOES_HERE"; // replace this with your own title id
+    private static string SandboxId = "RETAIL";
 
     public static string Scid
     {
@@ -22,6 +26,11 @@ public static class XboxLiveConfig
         set { DecimalTitleId = value; }
     }
 
+    public static string Sandbox
+    {
+        get { return SandboxId; }
+        set { SandboxId = value; }
+    }
 
     public static bool CheckValidGUID(string serviceConfigID)
     {
@@ -32,7 +41,7 @@ public static class XboxLiveConfig
         bool isValidGuid = rgx.IsMatch(serviceConfigID);
 
         if (!isValidGuid)
-            Debug.Log("! Error ! Invalid Service Config ID");
+            UnityEngine.Debug.Log("! Error ! Invalid Service Config ID");
 
         return isValidGuid;
     }
@@ -45,7 +54,7 @@ public static class XboxLiveConfig
         bool isValidTitleId = rgx.IsMatch(titleID);
 
         if (!isValidTitleId)
-            Debug.Log("! Error ! Invalid Title ID - perhaps you aren't using the decimal ID?");
+            UnityEngine.Debug.Log("! Error ! Invalid Title ID - perhaps you aren't using the decimal ID?");
 
         return isValidTitleId;
     }
@@ -69,7 +78,7 @@ public static class XboxLiveConfig
             if (File.Exists(path))
             {
 #if XBL_DEBUG
-                Debug.Log("Created xbox services config file : " + path);
+                UnityEngine.Debug.Log("Created xbox services config file : " + path);
 #endif
                 return true;
             }
@@ -77,11 +86,79 @@ public static class XboxLiveConfig
         }
         catch (System.IO.IOException e)
         {
-            Debug.Log("File IO Exception trying to create xboxservices.config");
+            UnityEngine.Debug.Log("File IO Exception trying to create xboxservices.config");
             return false;
         }
 
         return false;
+    }
+}
+
+public class XBLSandboxConfigWindow : EditorWindow
+{
+    static string sandboxId = XboxLiveConfig.Sandbox;
+
+    [MenuItem("UWP / Xbox Live/Set Sandbox")]
+    public static void ConfigureSandbox()
+    {
+        EditorWindow.GetWindow(typeof(XBLSandboxConfigWindow));
+    }
+
+
+    private void OnGUI()
+    {
+        GUILayout.Label("Sandbox Configuration", EditorStyles.boldLabel);
+        sandboxId = EditorGUILayout.TextField("Sandbox ID: ", sandboxId);
+
+        if (GUILayout.Button("Set Sandbox"))
+        {
+            SetSandbox(sandboxId);
+        }
+        if (GUILayout.Button("Reset Sandbox"))
+        {
+            SetSandbox("RETAIL");
+        }
+    }
+
+    private void SetSandbox(string sandbox)
+    {
+        SetSandboxCmd cmd = new SetSandboxCmd(sandbox);
+        
+        ThreadStart threadDelegate = new ThreadStart(cmd.Set);
+
+        Thread setCmdThread = new Thread(threadDelegate);
+
+        setCmdThread.Start();
+    }
+
+}
+
+class SetSandboxCmd
+{
+    string sandboxId;
+
+    public SetSandboxCmd(string sandboxId)
+    {
+        this.sandboxId = sandboxId;
+    }
+
+    public void Set()
+    {
+        var processInfo = new ProcessStartInfo("cmd.exe", "/C " + @"reg add hklm\software\microsoft\XboxLive /v Sandbox /d " + sandboxId + " /f & net stop XblAuthManager & net start XblAuthManager");
+        processInfo.CreateNoWindow = false;
+        processInfo.UseShellExecute = true;
+        processInfo.RedirectStandardError = false;
+        processInfo.RedirectStandardOutput = false;
+        processInfo.Verb = "runas";
+
+        Process p = new Process();
+
+        p.StartInfo = processInfo;
+        p.Start(); 
+        p.WaitForExit();
+
+        if(p.ExitCode == 0)
+            UnityEngine.Debug.Log("XBL: Sandbox configured to " + sandboxId);
     }
 }
 
@@ -137,7 +214,7 @@ public class XBLConfigWindow : EditorWindow
             return;
         else
         {
-            Debug.Log("Saved successfully! SCID: " + XboxLiveConfig.Scid + " TitleID: " + XboxLiveConfig.TitleId);
+            UnityEngine.Debug.Log("Saved successfully! SCID: " + XboxLiveConfig.Scid + " TitleID: " + XboxLiveConfig.TitleId);
 
             XboxLiveConfig.Scid = scid;
             XboxLiveConfig.TitleId = titleId;
@@ -152,7 +229,7 @@ public class XBLConfigWindow : EditorWindow
             if (!XboxLiveConfig.CreateConfigFile(folderpath + "xboxservices.config"))
                 return;
 
-            Debug.Log("Saved successfully! SCID: " + XboxLiveConfig.Scid + " TitleID: " + XboxLiveConfig.TitleId);
+            UnityEngine.Debug.Log("Saved successfully! SCID: " + XboxLiveConfig.Scid + " TitleID: " + XboxLiveConfig.TitleId);
         }
     }
 
@@ -175,7 +252,7 @@ public class XBLConfigWindow : EditorWindow
                     if (scidMatch.Success) { //scid found
                         scid = scidMatch.Value;
                         XboxLiveConfig.Scid = scid;
-                        Debug.Log("XBLConfig loaded scid : " + scid);
+                        UnityEngine.Debug.Log("XBLConfig loaded scid : " + scid);
                     }
 
                     var titleIdMatch = Regex.Match(line, @"([0-9]{10}),");
@@ -183,7 +260,7 @@ public class XBLConfigWindow : EditorWindow
                     { //scid found
                         titleId = titleIdMatch.Groups[1].Value;
                         XboxLiveConfig.TitleId = titleId;
-                        Debug.Log("XBLConfig loaded titleId : " + titleId);
+                        UnityEngine.Debug.Log("XBLConfig loaded titleId : " + titleId);
                     }
                 }
             }
@@ -209,10 +286,10 @@ class AddXboxLiveConfig : IPostprocessBuild {
 
     public void OnPostprocessBuild(BuildTarget target, string path)
     {
-        
+
 #if XBL_DEBUG
-        Debug.Log("processor for target " + target + " at path " + path);
-        Debug.Log("Player settings: " + PlayerSettings.productName);
+        UnityEngine.Debug.Log("processor for target " + target + " at path " + path);
+        UnityEngine.Debug.Log("Player settings: " + PlayerSettings.productName);
 #endif
         //if the build isn't for UWP, then just ignore
         if (target != BuildTarget.WSAPlayer)
@@ -235,7 +312,7 @@ class AddXboxLiveConfig : IPostprocessBuild {
             {
 #if XBL_DEBUG
                 //If the directory exists, we can create the services config file
-                Debug.Log("Dir exists " + actualPath + " creating config file");
+                UnityEngine.Debug.Log("Dir exists " + actualPath + " creating config file");
 #endif
                 string xboxServicesFilePath = actualPath + "/xboxservices.config";
 
@@ -249,7 +326,7 @@ class AddXboxLiveConfig : IPostprocessBuild {
                 {
 #if XBL_DEBUG
                     //Project file was found so now add the config file as content to the project file
-                    Debug.Log("Project file found: " + mainProjectFile);
+                    UnityEngine.Debug.Log("Project file found: " + mainProjectFile);
 #endif
                     //Load the output project file
                     XmlDocument projectFile = new XmlDocument();
@@ -259,7 +336,7 @@ class AddXboxLiveConfig : IPostprocessBuild {
                     if (CheckForXboxConfig(projectFile))
                     {
 #if XBL_DEBUG
-                        Debug.Log("xboxservices.config already found in project");
+                        UnityEngine.Debug.Log("xboxservices.config already found in project");
 #endif
                         return;
                     }
@@ -270,7 +347,7 @@ class AddXboxLiveConfig : IPostprocessBuild {
                     //Save the changes
                     projectFile.Save(mainProjectFile);
 #if XBL_DEBUG
-                    Debug.Log("Project file saved: " + mainProjectFile);
+                    UnityEngine.Debug.Log("Project file saved: " + mainProjectFile);
 #endif
                 }
             }
