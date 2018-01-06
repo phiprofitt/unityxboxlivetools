@@ -96,7 +96,7 @@ public static class XboxLiveConfig
 
 public class XBLFiddlerConfigWindow : EditorWindow
 {
-    [MenuItem("UWP / Xbox Live/Fiddler Config")]
+    [MenuItem("UWP / Xbox Live/ Debug / Fiddler Config")]
     public static void ConfigureFiddler()
     {
         EditorWindow.GetWindow(typeof(XBLFiddlerConfigWindow));
